@@ -49,6 +49,29 @@ Datareduit$Dyad <- apply(Datareduit[, c("Subject", "Recipient")], 1, function(ro
 # and the variable for "Multisensory acts" is called "ReceptionMultimodality_YN"
 
 # --------------------------------------------------------------------------------------------------------
+# Proportion of multimodal signals ---------------------------------------------------------------------------------------
+
+table(Datareduit$Multimodality_YN)
+table(Datareduit$ReceptionMultimodality_YN)
+
+datM <- data.frame(datMulti %>% group_by(Subject,Multimodality_YN==1) %>% summarize(count=n())) 
+datM <- subset(datM, datM$Multimodality_YN....1=="TRUE") ; datM <- datM[,-2]; colnames(datM) <- c("Subject","MultimodalityCount")
+nodatR <- data.frame(datMulti %>% group_by(Subject,Multimodality_YN==0) %>% summarize(count=n())) 
+nodatR <- subset(nodatR, nodatR$Multimodality_YN....0=="TRUE") ; nodatR <- nodatR[,-2]; colnames(nodatR) <- c("Subject","NoMultimodalityCount")
+datM <- merge(datM, nodatR, by.x = 'Subject', by.y = 'Subject', all.x = TRUE, all.y = TRUE)
+datM[is.na(datM)] <- 0
+datM$Proportion <- datM$MultimodalityCount*100/(datM$MultimodalityCount+datM$NoMultimodalityCount); colnames(datM) <- c("Subject","MultimodalityCount","NoMultimodalityCount","MultimodalityProp")
+
+datR <- data.frame(datRecMod %>% group_by(Subject,ReceptionMultimodality_YN==1) %>% summarize(count=n())) 
+datR <- subset(datR, datR$ReceptionMultimodality_YN....1=="TRUE") ; datR <- datR[,-2]; colnames(datR) <- c("Subject","ReceptionMultimodalityCount")
+nodatR <- data.frame(datRecMod %>% group_by(Subject,ReceptionMultimodality_YN==0) %>% summarize(count=n())) 
+nodatR <- subset(nodatR, nodatR$ReceptionMultimodality_YN....0=="TRUE") ; nodatR <- nodatR[,-2]; colnames(nodatR) <- c("Subject","NoReceptionMultimodalityCount")
+datR <- merge(datR, nodatR, by.x = 'Subject', by.y = 'Subject', all.x = TRUE, all.y = TRUE)
+datR[is.na(datR)] <- 0
+datR$Proportion <- datR$ReceptionMultimodalityCount*100/(datR$ReceptionMultimodalityCount+datR$NoReceptionMultimodalityCount); colnames(datR) <- c("Subject","ReceptionMultimodalityCount","NoReceptionMultimodalityCount","ReceptionMultimodalityProp")
+
+
+# --------------------------------------------------------------------------------------------------------
 # Nb of communicative acts per setting and per Context ---------------------------------------------------------------------------------------
 
 # Prepare dataset
@@ -146,36 +169,59 @@ setDT(proportion_columns)
 proportion_columns = melt(proportion_columns, id.vars=c("Subject"), variable.name = "Combination", value.name="Proportion")
 
 IDinfo <- MultiCombiSub[,c("Subject","Group","Setting","Sex","Age","Rank")] # Extract individual info from dataset
-IDinfo <- IDinfo[!duplicated(IDinfo), ] # Take out the lines en double
+IDinfo <- IDinfo[!duplicated(IDinfo), ] # Take out the duplicated lines
 proportion_columns <- merge(proportion_columns, IDinfo, by.x = "Subject", by.y = "Subject", all.x = TRUE, all.y = TRUE)
+total_combinations <- as.data.frame(total_combinations)
+total_combinations$Subject <- rownames(total_combinations)
+proportion_columns <- merge(proportion_columns, total_combinations, by.x = c('Subject'), by.y = c('Subject'), all.x = TRUE, all.y = TRUE)
 
 # Set order
 proportion_columns$Combination <- factor(proportion_columns$Combination, levels = c("Body+Body 2","Body+Facial","Body+Manual","Body+Vocal","Facial+Manual","Facial+Vocal","Manual+Manual 2","Manual+Vocal","Body+Facial+Manual","Body+Facial+Vocal","Body+Manual+Vocal","Facial+Manual+Vocal","Body+Facial+Manual+Vocal"))
 
-MSet <- ggplot(proportion_columns, aes(Setting, Proportion)) + 
-  geom_boxplot(aes(fill = Combination)) + 
-  theme_angele_ss + 
-  ggtitle("(a)") +
-  scale_x_discrete("Setting") +
-  scale_y_continuous("Proportion of MC acts", breaks = seq(0, 1, by=0.1)) +
-  scale_fill_manual(values = c("#c771aa","#de43aa","#c40484", "#a8277d", "#db046c","#c40236","#bd5395","#f2507b","#8dbd2d", "#338a04","#2ea820","#64d457", "#4d77eb")) +
-  guides(fill=guide_legend(title="Types of signal combination", ncol=4)) +
-  theme(legend.title = element_text(hjust = 0.5))+
-  theme(axis.title.y = element_text(margin = margin(r = 15))) +
-  theme(plot.title = element_text(face = "bold")) +  
-  geom_point(aes(fill = Combination),position= position_dodge(0.75), shape = 1, colour = "black", alpha = 0.25)
+PointSizeM <- sqrt(proportion_columns$total_combinations) / max(sqrt(proportion_columns$total_combinations)) * 5
 
-MSex <- ggplot(proportion_columns, aes(Sex, Proportion)) + 
-  geom_boxplot(aes(fill = Combination)) + 
+install.packages("viridis")
+library("viridis")
+
+MSet <- ggplot(proportion_columns, aes(x = Setting, y = Proportion)) + 
+  stat_summary(aes(fill = Combination, color = Combination),
+               fun = mean, geom = "point", shape = 21,
+               size = 5, position = position_dodge(width = 0.92)) +
+  scale_fill_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  scale_color_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  stat_summary(aes(fill = Combination), fun.data = mean_cl_normal, 
+               geom = "errorbar", 
+               width = 0.5, 
+               position = position_dodge(width = 0.92)) +
   theme_angele_ss + 
   ggtitle("(b)") +
-  scale_x_discrete("Sex") +
-  scale_y_continuous("", breaks = seq(0, 1, by=0.1)) +
-  scale_fill_manual(values = c("#c771aa","#de43aa","#c40484", "#a8277d", "#db046c","#c40236","#bd5395","#f2507b","#8dbd2d", "#338a04","#2ea820","#64d457", "#4d77eb")) +
-  guides(fill=guide_legend(title="Types of signal combination", ncol=4)) +
+  scale_x_discrete("Setting", expand = expansion(mult = c(0.5, 0.5))) +
+  scale_y_continuous("", breaks = seq(0, 1, by = 0.1)) +
+  guides(fill = guide_legend(title = "Types of signal combination", ncol = 4), color = "none") +
+  theme(
+    legend.title = element_text(hjust = 0.5),
+    axis.title.y = element_text(margin = margin(r = 15)),
+    plot.title = element_text(face = "bold")) +
+  geom_point(aes(size = PointSizeM, fill = Combination),position= position_dodge(0.92), shape = 1, colour = "black", alpha = 0.25, show.legend = FALSE)
+
+MSex <- ggplot(proportion_columns, aes(Sex, Proportion)) + 
+  stat_summary(aes(fill = Combination, color = Combination),
+               fun = mean, geom = "point", shape = 21,
+               size = 5, position = position_dodge(width = 0.92)) +
+  stat_summary(aes(fill = Combination), fun.data = mean_cl_normal, 
+               geom = "errorbar", 
+               width = 0.5, 
+               position = position_dodge(width = 0.92)) +
+  theme_angele_ss + 
+  ggtitle("(a)") +
+  scale_x_discrete("Sex", labels=c("Females","Males"), expand = expansion(mult = c(0.5, 0.5))) +
+  scale_y_continuous("Proportion of MC acts", breaks = seq(0, 1, by=0.1)) +
+  scale_fill_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  scale_color_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  guides(fill=guide_legend(title="Types of signal combination", ncol=4), color = "none") +
   theme(legend.title = element_text(hjust = 0.5)) +
   theme(plot.title = element_text(face = "bold")) +  
-  geom_point(aes(fill = Combination),position= position_dodge(0.75), shape = 1, colour = "black", alpha = 0.25)
+  geom_point(aes(size = PointSizeM, fill = Combination),position= position_dodge(0.92), shape = 1, colour = "black", alpha = 0.25, show.legend = FALSE)
 
 library(gridExtra)
 library(grid)
@@ -185,9 +231,9 @@ get_legend <- function(myggplot) {
   legend <- tmp$grobs[[leg]]
   return(legend)
 }
-mylegend <- get_legend(MSet)
-grid.arrange(arrangeGrob(MSet + theme(legend.position="none"),
-                         MSex + theme(legend.position="none"), ncol=2, widths = c(2, 2)), mylegend, nrow = 3, heights = c(4, 2, 1))
+mylegend <- get_legend(MSex)
+grid.arrange(arrangeGrob(MSex + theme(legend.position="none"),
+                         MSet + theme(legend.position="none"), ncol=2, widths = c(2, 2)), mylegend, nrow = 3, heights = c(4, 2, 1))
 
 # Extract values
 # Count occurrences for each combination
@@ -259,37 +305,56 @@ RMproportion_columns[, Combination:=str_replace(Combination, ".Close", "")]
 IDinfo <- DatareduitSub[,c("Subject","Group","Setting","Sex","Age","Rank")] 
 IDinfo <- IDinfo[!duplicated(IDinfo), ] # Take out the lines en double
 RMproportion_columns <- merge(RMproportion_columns, IDinfo, by.x = "Subject", by.y = "Subject", all.x = TRUE, all.y = TRUE)
+total_RMcombinations <- as.data.frame(total_RMcombinations)
+total_RMcombinations$Subject <- rownames(total_RMcombinations)
+RMproportion_columns <- merge(RMproportion_columns, total_RMcombinations, by.x = c('Subject'), by.y = c('Subject'), all.x = TRUE, all.y = TRUE)
 
 # Set order
 RMproportion_columns$Combination <- factor(RMproportion_columns$Combination, levels = c("Auditory+Tactile","Auditory+Visual","Seismic+Tactile","Seismic+Visual","Tactile+Visual","Auditory+Seismic+Visual","Auditory+Tactile+Visual","Seismic+Tactile+Visual"))
 
-RMSet <- ggplot(RMproportion_columns, aes(Setting, Proportion)) + 
-  geom_boxplot(aes(fill = Combination)) + 
-  theme_angele_ss + 
-  ggtitle("(a)") +
-  scale_x_discrete("Setting") +
-  scale_y_continuous("Proportion of MS acts", breaks = seq(0, 1, by=0.1)) +
-  scale_fill_manual(values = c("#de43aa", "#a8277d", "#db046c","#c40236","#f2507b","#8dbd2d", "#338a04","#64d457")) +
-  guides(fill=guide_legend(title="Types of sensory combination", ncol = 2))+
-  theme(legend.title = element_text(hjust = 0.5))+
-  theme(axis.title.y = element_text(margin = margin(r = 15))) +
-  theme(plot.title = element_text(face = "bold")) +  
-  geom_point(aes(fill = Combination),position= position_dodge(0.75), shape = 1, colour = "black", alpha = 0.25)
+PointSizeRM <- sqrt(RMproportion_columns$total_RMcombinations) / max(sqrt(RMproportion_columns$total_RMcombinations)) * 5
 
-RMSex <- ggplot(RMproportion_columns, aes(Sex, Proportion)) + 
-  geom_boxplot(aes(fill = Combination)) + 
+RMSet <- ggplot(RMproportion_columns, aes(x = Setting, y = Proportion)) + 
+  stat_summary(aes(fill = Combination, color = Combination),
+               fun = mean, geom = "point", shape = 21,
+               size = 5, position = position_dodge(width = 0.92)) +
+  scale_fill_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  scale_color_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  stat_summary(aes(fill = Combination), fun.data = mean_cl_normal, 
+               geom = "errorbar", 
+               width = 0.5, 
+               position = position_dodge(width = 0.92)) +
   theme_angele_ss + 
   ggtitle("(b)") +
-  labs(y="") +
-  scale_x_discrete("Sex") +
-  scale_y_continuous("", breaks = seq(0, 1, by=0.1)) +
-  scale_fill_manual(values = c("#de43aa", "#a8277d", "#db046c","#c40236","#f2507b","#8dbd2d", "#338a04","#64d457")) +
-  guides(fill=guide_legend(title="Sensory combinations", ncol = 2)) +
-  theme(plot.title = element_text(face = "bold")) +  
-  geom_point(aes(fill = Combination),position= position_dodge(0.75), shape = 1, colour = "black", alpha = 0.25)
+  scale_x_discrete("Setting", expand = expansion(mult = c(0.5, 0.5))) +
+  scale_y_continuous("", breaks = seq(0, 1, by = 0.1)) +
+  guides(fill = guide_legend(title = "Types of signal combination", ncol = 2),color = "none") +
+  theme(
+    legend.title = element_text(hjust = 0.5),
+    legend.spacing.x = unit(2, "cm"),
+    axis.title.y = element_text(margin = margin(r = 15)),
+    plot.title = element_text(face = "bold")) +
+  geom_point(aes(size = PointSizeRM, fill = Combination),position= position_dodge(0.92), shape = 1, colour = "black", alpha = 0.25, show.legend = FALSE)
 
-library(gridExtra)
-library(grid)
+RMSex <- ggplot(RMproportion_columns, aes(Sex, Proportion)) + 
+  stat_summary(aes(fill = Combination, color = Combination),
+               fun = mean, geom = "point", shape = 21,
+               size = 5, position = position_dodge(width = 0.92)) +
+  stat_summary(aes(fill = Combination), fun.data = mean_cl_normal, 
+               geom = "errorbar", 
+               width = 0.5, 
+               position = position_dodge(width = 0.92)) +
+  theme_angele_ss + 
+  ggtitle("(a)") +
+  scale_x_discrete("Sex", labels=c("Females","Males"), expand = expansion(mult = c(0.5, 0.5))) +
+  scale_y_continuous("Proportion of MC acts", breaks = seq(0, 1, by=0.1)) +
+  scale_fill_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  scale_color_viridis(option = "C", discrete = "TRUE", direction = -1, begin = 0.3) +
+  guides(fill=guide_legend(title="Types of signal combination", ncol=2)) +
+  theme(legend.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(face = "bold")) +  
+  geom_point(aes(size = PointSizeRM, fill = Combination),position= position_dodge(0.92), shape = 1, colour = "black", alpha = 0.25, show.legend = FALSE)
+
 get_legend <- function(myggplot) {
   tmp <- ggplot_gtable(ggplot_build(myggplot))
   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
@@ -297,8 +362,8 @@ get_legend <- function(myggplot) {
   return(legend)
 }
 mylegend <- get_legend(RMSet)
-grid.arrange(arrangeGrob(RMSet + theme(legend.position="none"),
-                         RMSex + theme(legend.position="none"), ncol=2, widths = c(2, 2)), mylegend, nrow = 2, heights = c(4, 2))
+grid.arrange(arrangeGrob(RMSex + theme(legend.position="none"),
+                         RMSet + theme(legend.position="none"), ncol=2, widths = c(2, 2)), mylegend, nrow = 2, heights = c(4, 2))
 
 # Extract values
 # Count occurrences for each combination
@@ -544,13 +609,13 @@ BLUPm <- ggplot() +
   geom_errorbar(data = randomSimsM, aes(x = groupID, ymin = plogis(mean-sd), ymax = plogis(mean+sd), col=SexSetting)) +
   geom_point(data = randomSimsM, aes(x = groupID, y = plogis(mean), col=SexSetting), size = 2) +
   # geom_vline(xintercept = c(4.5,12.5,17.5), linetype=2) + 
-  ggtitle("(a)") +
+  ggtitle("(b)") +
   theme_angele_ss +
   scale_y_continuous("Multicomponent acts", limits = y_limits, breaks = y_breaks) +
   xlab("Subject") +
   theme(axis.text.x = element_blank(), legend.position = "bottom") +
   # annotate("text",x = 3, y = 0.4, label = "R = 0.1", size = 4) +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary")) +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary")) +
   theme(plot.title = element_text(face = "bold"))
 
 print(BLUPm)
@@ -759,13 +824,13 @@ BLUPrm <- ggplot() +
   geom_errorbar(data = randomSimsRM, aes(x = groupID, ymin = plogis(mean-sd), ymax = plogis(mean+sd), col=SexSetting)) +
   geom_point(data = randomSimsRM, aes(x = groupID, y = plogis(mean), col=SexSetting), size = 2) +
   # geom_vline(xintercept = c(4.5,12.5,17.5), linetype=2) + 
-  ggtitle("(b)") +
+  ggtitle("(a)") +
   theme_angele_ss +
   scale_y_continuous("Multisensory acts", limits = y_limits, breaks = y_breaks) +
   xlab("Subject") +
   theme(axis.text.x = element_blank(), legend.position = "bottom") +
   # annotate("text",x = 3, y = 0.4, label = "R = 0.1", size = 4) +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary")) +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary")) +
   theme(plot.title = element_text(face = "bold"))
 
 print(BLUPrm)
@@ -991,8 +1056,8 @@ plot_riM <- ggplot(RI_M_long, aes(x = Context, y = plogis(Value), group = Subjec
   geom_line(linewidth = 0.8) +
   theme_angele_ss +
   scale_y_continuous("Multicomponent acts", limits = y_limits, breaks = y_breaks) +
-  ggtitle("(a)") +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary"))+
+  ggtitle("(c)") +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary"))+
   scale_x_discrete("Context", labels = c("Non Social","Social")) +
   guides(color = guide_legend(nrow = 1, byrow = TRUE)) +
   theme(plot.title = element_text(face = "bold"))
@@ -1001,9 +1066,9 @@ plot_risM <- ggplot(RIS_M_long, aes(x = Context, y = plogis(Value), group = Subj
   geom_line(linewidth = 0.8) +
   theme_angele_ss +
   scale_y_continuous("", limits = y_limits, breaks = y_breaks) +
-  ggtitle("(b)") +
+  ggtitle("(d)") +
   scale_x_discrete("Context", labels = c("Non Social","Social")) +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary")) +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary")) +
   theme(plot.title = element_text(face = "bold"))
 BRN_MC <- grid.arrange(arrangeGrob(plot_riM + theme(legend.position="none"),
                                    plot_risM + theme(legend.position="none"), ncol=2))
@@ -1200,8 +1265,8 @@ plot_riRM <- ggplot(RI_RM_long, aes(x = Context, y = plogis(Value), group = Subj
   geom_line(linewidth = 0.8) +
   theme_angele_ss +
   scale_y_continuous("Multisensory acts", limits = y_limits, breaks = y_breaks) +
-  ggtitle("(c)") +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary"))+
+  ggtitle("(a)") +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary"))+
   scale_x_discrete("Context", labels = c("Non Social","Social")) +
   guides(color = guide_legend(nrow = 1, byrow = TRUE)) +
   theme(plot.title = element_text(face = "bold"))
@@ -1210,9 +1275,9 @@ plot_risRM <- ggplot(RIS_RM_long, aes(x = Context, y = plogis(Value), group = Su
   geom_line(linewidth = 0.8) +
   theme_angele_ss +
   scale_y_continuous("", limits = y_limits, breaks = y_breaks) +
-  ggtitle("(d)") +
+  ggtitle("(b)") +
   scale_x_discrete("Context", labels = c("Non Social","Social")) +
-  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("M/Zoo", "F/Zoo", "M/Sanctuary", "F/Sanctuary")) +
+  scale_color_manual(values = cols, name="Sex/Setting Category: ", labels=c("Male/Zoo", "Female/Zoo", "Male/Sanctuary", "Female/Sanctuary")) +
   theme(plot.title = element_text(face = "bold"))
 BRN_MS <- grid.arrange(arrangeGrob(plot_riRM + theme(legend.position="none"),
                                    plot_risRM + theme(legend.position="none"), ncol=2))
